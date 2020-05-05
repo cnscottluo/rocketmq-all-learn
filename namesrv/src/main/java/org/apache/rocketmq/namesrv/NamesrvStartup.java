@@ -47,15 +47,27 @@ public class NamesrvStartup {
     private static Properties properties = null;
     private static CommandLine commandLine = null;
 
+    /**
+     * 主方法
+     * @param args
+     */
     public static void main(String[] args) {
         main0(args);
     }
 
+    /**
+     * 入口方法
+     * @param args
+     * @return
+     */
     public static NamesrvController main0(String[] args) {
 
         try {
+            // 创建Controller
             NamesrvController controller = createNamesrvController(args);
+            // 启动Controller
             start(controller);
+            // 打印信息
             String tip = "The Name Server boot success. serializeType=" + RemotingCommand.getSerializeTypeConfigInThisServer();
             log.info(tip);
             System.out.printf("%s%n", tip);
@@ -69,6 +81,8 @@ public class NamesrvStartup {
     }
 
     public static NamesrvController createNamesrvController(String[] args) throws IOException, JoranException {
+
+        // 设置系统属性 rocketmq.remoting.version
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
         //PackageConflictDetect.detectFastjson();
 
@@ -79,15 +93,25 @@ public class NamesrvStartup {
             return null;
         }
 
+        // NameServer业务参数
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
+
+        // Netty配置（NameServer网络参数）
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
+        // 设置Netty监听端口
         nettyServerConfig.setListenPort(9876);
+
+        // -c configFile
         if (commandLine.hasOption('c')) {
+            // 获取配置文件的路径
             String file = commandLine.getOptionValue('c');
             if (file != null) {
+                // 以流的方式读出配置文件
                 InputStream in = new BufferedInputStream(new FileInputStream(file));
                 properties = new Properties();
+                // 加载配置文件
                 properties.load(in);
+                // 解析
                 MixAll.properties2Object(properties, namesrvConfig);
                 MixAll.properties2Object(properties, nettyServerConfig);
 
@@ -98,6 +122,7 @@ public class NamesrvStartup {
             }
         }
 
+        // 打印出加载的配置属性
         if (commandLine.hasOption('p')) {
             InternalLogger console = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_CONSOLE_NAME);
             MixAll.printObjectProperties(console, namesrvConfig);
@@ -105,8 +130,10 @@ public class NamesrvStartup {
             System.exit(0);
         }
 
+        // 合并NameServer命令行配置属性
         MixAll.properties2Object(ServerUtil.commandLine2Properties(commandLine), namesrvConfig);
 
+        // 判断rocketmq主目录是否为空
         if (null == namesrvConfig.getRocketmqHome()) {
             System.out.printf("Please set the %s variable in your environment to match the location of the RocketMQ installation%n", MixAll.ROCKETMQ_HOME_ENV);
             System.exit(-2);
@@ -123,6 +150,7 @@ public class NamesrvStartup {
         MixAll.printObjectProperties(log, namesrvConfig);
         MixAll.printObjectProperties(log, nettyServerConfig);
 
+        // 根据属性创建NamesrvController实例
         final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig);
 
         // remember all configs to prevent discard
@@ -131,18 +159,22 @@ public class NamesrvStartup {
         return controller;
     }
 
+    // 启动Controller
     public static NamesrvController start(final NamesrvController controller) throws Exception {
 
         if (null == controller) {
             throw new IllegalArgumentException("NamesrvController is null");
         }
 
+
+        // Controller初始化
         boolean initResult = controller.initialize();
         if (!initResult) {
             controller.shutdown();
             System.exit(-3);
         }
 
+        // JVM钩子函数
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
             @Override
             public Void call() throws Exception {
@@ -151,6 +183,7 @@ public class NamesrvStartup {
             }
         }));
 
+        // 启动
         controller.start();
 
         return controller;
